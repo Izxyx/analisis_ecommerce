@@ -1,11 +1,8 @@
 # ---------- Librerias ----------
 
-from operator import index
-from pickle import TRUE
-import pandas as pd  # instalamos pandas y openpyxl
-import plotly.express as px 
+import pandas as pd
+import plotly.express as px
 import streamlit as st
-from collections import Counter
 
 # ---------- Configuracion inicial de la pagina ----------
 #Pagina para obtener emojis: https://www.webfx.com/tools/emoji-cheat-sheet/
@@ -25,22 +22,7 @@ def get_data_from_excel():
 df = get_data_from_excel()
 
 # ---------- Sidebar ----------
-st.sidebar.header('Filtrar Información')
-
-# years = st.sidebar.multiselect(
-#     label='Selecciona el Año:',
-#     options=df['Year'].unique(),
-#     default=df['Year'].unique(),
-#     disabled=False
-# )
-# st.sidebar.write(years)
-
-# months = st.sidebar.slider(
-#     label='Selecciona el Mes',
-#     min_value=1,
-#     max_value=12
-# )
-# st.sidebar.write(months)
+st.sidebar.header('Selecciona la fecha')
 
 days = st.sidebar.slider(
     label='Selecciona el Día',
@@ -57,6 +39,7 @@ hours = st.sidebar.slider(
 # st.sidebar.write(hours)
 
 # ---------- Mainpage ----------
+
 st.title('Dashboard Ventas E-commerce')
 
 # ---------- Metricas ----------
@@ -68,31 +51,31 @@ total_sales = round(df['TotalSale'].sum(),3)
 mean_sale = round(df['TotalSale'].mean(),3)
 
 #Producto mas vendido
-counting_sold_products = Counter(df['Description'])
-most_sold_products = counting_sold_products.most_common()
-top_product = most_sold_products[0][0]
+most_product = df['Description'].value_counts()
+top_sale = most_product.index[0]
 
+#Producto con mas ventas
 top = df.groupby('Description').agg(sum)[['TotalSale']]
-top_one = top.index[0] 
+top_product = top.index[0]
 
 # ---------- Division en 3 columnas ----------
 
-left_column, middle_column, right_column, right_right_column = st.columns(4)
-with left_column:
+metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+with metric_1:
     st.subheader('Total Ventas')
     st.caption('US $ {}'.format(total_sales))
 
-with middle_column:
+with metric_2:
     st.subheader('Venta Promedio Por Venta')
     st.caption('US $ {}'.format(mean_sale))
 
-with right_column:
+with metric_3:
     st.subheader('Producto Mas Vendido')
-    st.caption('{}'.format(top_product))
+    st.caption('{}'.format(top_sale))
 
-with right_right_column:
+with metric_4:
     st.subheader('Producto Con Mas Ventas')
-    st.caption('{}'.format(top_one))
+    st.caption('{}'.format(top_product))
 
 st.markdown("""---""")
 
@@ -102,39 +85,56 @@ df_editable = df.query('Hour == @hours & Day == @days')
 
 #  ---------- Graficas  ----------
 
-#  ---------- Ventas por Mes  ---------- 
+#  ---------- Ventas por Mes  ----------
+meses = {
+    1:'Enero',
+    2:'Febrero',
+    3:'Marzo',
+    4:'Abril',
+    5:'Mayo',
+    6:'Junio',
+    7:'Julio',
+    8:'Agosto',
+    9:'Septiembre',
+    10:'Octubre',
+    11:'Noviembre',
+    12:'Diciembre'
+}
+
 ventas_por_mes = df_editable.groupby(by=['Month']).sum()[['TotalSale']]
 fig_ventas_por_mes = px.bar(
     ventas_por_mes,
-    x=ventas_por_mes.index,
+    x=ventas_por_mes.index.map(meses),
     y='TotalSale',
     title='<b>Ventas por Mes</b>',
-    color='TotalSale'
+    color_discrete_sequence=px.colors.sequential.Reds
 )
 fig_ventas_por_mes.update_layout(
     xaxis=dict(tickmode='linear'),
     plot_bgcolor="rgba(0,0,0,0)",
-    yaxis=(dict(showgrid=True)),
+    yaxis=(dict(showgrid=True))
 )
 
-#  ---------- Ventas por Año  ---------- 
-ventas_por_ano = df_editable.groupby(by=['Year']).sum()[['TotalSale']]
-fig_ventas_por_ano = px.bar(
-    ventas_por_ano,
-    x=ventas_por_ano.index,
-    y='TotalSale',
-    title='<b>Ventas por Año</b>',
-    color='TotalSale'
+#  ---------- Ventas Totales en Porcentajes ----------
+
+fig = px.pie(df_editable,
+    values='TotalSale',
+    names=df_editable.Month.map(meses),
+    color_discrete_sequence=px.colors.sequential.Reds,
+    title='<b>Ventas Totales</b>'
 )
-fig_ventas_por_ano.update_layout(
+
+fig.update_layout(
     xaxis=dict(tickmode='linear'),
-    plot_bgcolor='rgba(0,0,0,0)',
-    yaxis=(dict(showgrid=True)),
+    plot_bgcolor="rgba(0,0,0,0)",
+    yaxis=(dict(showgrid=True))
 )
 
-left_column, right_column = st.columns(2)
-left_column.plotly_chart(fig_ventas_por_mes, use_container_width=True)
-right_column.plotly_chart(fig_ventas_por_ano, use_container_width=True)
+column_1, column_2 = st.columns(2)
+column_1.plotly_chart(fig_ventas_por_mes, use_container_width=True)
+column_2.plotly_chart(fig, use_container_width=True)
+
+#  ---------- Charts  ----------
 
 col1, col2 = st.columns(2)
 
@@ -152,8 +152,6 @@ with col2:
                 .drop(['Year','Month','Day','Hour'],axis=1).head()
                 )
 
-
-
 # ---- Ocultar barra de carga streamlit----
 
 hide_st_style = """
@@ -169,15 +167,18 @@ st.markdown(hide_st_style, unsafe_allow_html=True)
 # ---- Descargar archivo en CSV ----
 @st.cache
 def convert_df(df):
+    df = df.drop(['Year'],axis=1)
+    df['Month'] = df['Month'].map(meses)
     return df.to_csv(index=False).encode('utf-8')
 
 csv = convert_df(df_editable)
 
+# ---- Boton de Descarga ----
 st.sidebar.header('Descargar Dataframe')
 
 st.sidebar.download_button(
     label="Descarga CSV",
     data=csv,
-    file_name='new_dataframe.csv',
+    file_name='ventas2011.csv',
     mime='text/csv',
 )
